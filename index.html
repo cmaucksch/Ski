@@ -178,7 +178,7 @@ function histHtml(s,sIndex){
   return s.history.slice().reverse().map((h,ri)=>{
     let extra='';
     if(h.type==='service'&&h.wachs&&h.wachs.length)extra+='<br><span style="font-size:13px;color:var(--subtle);">Wachs: '+h.wachs.join(', ')+'</span>';
-    if(h.type==='skiday'&&h.gebiet)extra+='<br><span style="font-size:13px;color:var(--subtle);">Gebiet: '+h.gebiet+'</span>';
+    if(h.type==='skiday'&&h.gebiet!==undefined)extra+='<br><span style="font-size:13px;color:var(--subtle);">Gebiet: '+(h.gebiet||'Skigebiet')+'</span>';
     return`<div class="history-item">
       <span class="history-date">${new Date(h.ts).toLocaleDateString('de')} ${new Date(h.ts).toLocaleTimeString('de').slice(0,5)}</span>
       <span class="history-action ${h.type}">${h.type==='skiday'?'Skitag':'Service'}${extra}</span>
@@ -364,7 +364,7 @@ function exportCSV(){
     const uhr=d.toLocaleTimeString('de').slice(0,5);
     const aktion=h.type==='skiday'?'Skitag':'Service';
     const wachs = h.type==='service'&&h.wachs&&h.wachs.length ? h.wachs.join(', ') : '';
-    const geb = h.type==='skiday'&&h.gebiet ? h.gebiet : '';
+    const geb = h.type==='skiday'&&h.gebiet!==undefined ? h.gebiet : '';
     csv+=`${h.ski};${d.toISOString()};${datum};${uhr};${aktion};${wachs};${geb}\n`;
   });
   csv+='\nZusammenfassung\nSki-Paar;Gesamt;Seit Service\n';
