@@ -380,7 +380,7 @@ function exportCSV(){
   }
 }
 
-/* ---------- CSV-Import (deine Datei kompatibel) ---------- */
+/* ---------- CSV-Import (deine Datei kompatibel + nur neue zählen) ---------- */
 function importCSV(){
   if(!confirm('⚠️ Vorhandene Daten werden durch Import ergänzt/überschrieben. Fortfahren?')) return;
   const input = document.createElement('input');
@@ -418,8 +418,9 @@ function importCSV(){
         wachs: act === 'Service' ? wachs : undefined,
         gebiet:act === 'skiday'  ? geb   : undefined
       });
-      if(act !== 'Service') ski.count++;
-      if(act === 'Service') ski.lastService = ski.count;
+      // nur zählen, wenn der Eintrag wirklich neu war
+      if (act !== 'Service') ski.count++;
+      if (act === 'Service') ski.lastService = ski.count;
       impCount++;
     }
     save(); render();
