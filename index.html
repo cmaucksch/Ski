@@ -380,7 +380,7 @@ function exportCSV(){
   }
 }
 
-/* ---------- CSV-Import (funktioniert) ---------- */
+/* ---------- CSV-Import (deine Datei kompatibel) ---------- */
 function importCSV(){
   if(!confirm('⚠️ Vorhandene Daten werden durch Import ergänzt/überschrieben. Fortfahren?')) return;
   const input = document.createElement('input');
@@ -391,7 +391,9 @@ function importCSV(){
     if(!file) return;
     const text = await file.text();
     if(!text.includes('Ski-Paar;ISO;Datum;Uhrzeit;Aktion')){ alert('Keine gültige Ski-Tracker-CSV'); return; }
-    const lines = text.split(/\r?\n/).filter(l => l.trim() && !l.startsWith('Zusammenfassung'));
+    const lines = text.split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith(';;;;;') && !l.startsWith('Zusammenfassung'));
     let impCount = 0, skipCount = 0;
     for(const ln of lines){
       const p = ln.split(';');
