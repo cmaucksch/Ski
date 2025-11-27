@@ -173,17 +173,16 @@ function colorClass(c){
 }
 
 /* ---------- Historie rendern ---------- */
-function histHtml(s){
+function histHtml(s,sIndex){
   if(!s.history.length)return'<div class="history-empty" style="font-size:13px;color:var(--subtle);">Noch keine Einträge</div>';
   return s.history.slice().reverse().map((h,ri)=>{
-    const idx=s.history.length-1-ri;
     let extra='';
     if(h.type==='service'&&h.wachs&&h.wachs.length)extra+='<br><span style="font-size:13px;color:var(--subtle);">Wachs: '+h.wachs.join(', ')+'</span>';
     if(h.type==='skiday'&&h.gebiet)extra+='<br><span style="font-size:13px;color:var(--subtle);">Gebiet: '+h.gebiet+'</span>';
     return`<div class="history-item">
       <span class="history-date">${new Date(h.ts).toLocaleDateString('de')} ${new Date(h.ts).toLocaleTimeString('de').slice(0,5)}</span>
       <span class="history-action ${h.type}">${h.type==='skiday'?'Skitag':'Service'}${extra}</span>
-      <span style="cursor:pointer;color:var(--minus);" onclick="delHist(${ri})">Löschen</span>
+      <span style="cursor:pointer;color:var(--minus);" onclick="delHist(${sIndex},${ri})">Löschen</span>
     </div>`;
   }).join('');
 }
@@ -206,7 +205,7 @@ function render(){
       <div class="row">
         <div class="hist-trigger" onclick="toggleHist(${i})">Historie</div>
       </div>
-      <div class="history" id="hist-${i}">${histHtml(s)}</div>
+      <div class="history" id="hist-${i}">${histHtml(s,i)}</div>
       <div class="actions">
         <button class="plus" onclick="openGebietModal(${i})">+</button>
         <button class="minus" onclick="decLastSkiDay(${i})">−</button>
@@ -252,6 +251,14 @@ function decLastSkiDay(i){
   skis[i].count=Math.max(0,skis[i].count-1);
   save();render();
   if(openHistIdx!==null)toggleHist(openHistIdx);
+}
+
+/* ---------- Ski-Paar löschen ---------- */
+function deleteSki(i){
+  if(confirm('Ski-Paar „'+skis[i].name+'“ wirklich löschen?')){
+    skis.splice(i,1);
+    save();render();
+  }
 }
 
 /* ---------- Skigebiet-Modal ---------- */
@@ -331,13 +338,13 @@ function saveModal(){
 }
 
 /* ---------- Historie einzeln löschen ---------- */
-function delHist(histIdx){
-  const skiIdx=Number(document.querySelector('.history.show').id.split('-')[1]);
+function delHist(skiIdx,histIdx){
   const realIdx=skis[skiIdx].history.length-1-histIdx;
   if(confirm('Eintrag löschen?')){
     skis[skiIdx].history.splice(realIdx,1);
     save();render();
-    if(openHistIdx!==null)toggleHist(openHistIdx);
+    openHistIdx=skiIdx;
+    toggleHist(skiIdx);
   }
 }
 
@@ -345,16 +352,20 @@ function delHist(histIdx){
 function isoNow(){return new Date().toISOString();}
 function isoToDE(iso){const d=new Date(iso);return d.toLocaleDateString('de')+' '+d.toLocaleTimeString('de').slice(0,5);}
 
-/* ---------- CSV-Export (ISO + Sekunden) ---------- */
+/* ---------- CSV-Export (7 Spalten, sauber) ---------- */
 function exportCSV(){
   let csv='Ski-Paar;ISO;Datum;Uhrzeit;Aktion;Wachs;Gebiet\n';
   const allEntries=[];
   skis.forEach(s=>s.history.forEach(h=>allEntries.push({...h,ski:s.name})));
   allEntries.sort((a,b)=>a.ts-b.ts);
   allEntries.forEach(h=>{
+    const d=new Date(h.ts);
+    const datum=d.toLocaleDateString('de');
+    const uhr=d.toLocaleTimeString('de').slice(0,5);
+    const aktion=h.type==='skiday'?'Skitag':'Service';
     const wachs = h.type==='service'&&h.wachs&&h.wachs.length ? h.wachs.join(', ') : '';
     const geb = h.type==='skiday'&&h.gebiet ? h.gebiet : '';
-    csv+=`${h.ski};${new Date(h.ts).toISOString()};${isoToDE(h.ts)};${h.type==='skiday'?'Skitag':'Service'};${wachs};${geb}\n`;
+    csv+=`${h.ski};${d.toISOString()};${datum};${uhr};${aktion};${wachs};${geb}\n`;
   });
   csv+='\nZusammenfassung\nSki-Paar;Gesamt;Seit Service\n';
   skis.forEach(s=>csv+=`${s.name};${s.count};${s.count-s.lastService}\n`);
@@ -369,47 +380,47 @@ function exportCSV(){
   }
 }
 
-/* ---------- CSV-Import (ISO + Warnung + komplett) ---------- */
+/* ---------- CSV-Import (funktioniert) ---------- */
 function importCSV(){
-  if(!confirm('⚠️ Vorhandene Daten werden durch Import ersetzt/ergänzt. Fortfahren?'))return;
-  const input=document.createElement('input');
-  input.type='file';
-  input.accept='.csv';
-  input.onchange=async e=>{
-    const file=e.target.files[0];
-    if(!file)return;
-    const text=await file.text();
-    if(!text.includes('Ski-Paar;ISO;Datum;Uhrzeit;Aktion')){alert('Keine gültige Ski-Tracker-CSV');return;}
-    const lines=text.split('\n').filter(l=>l.trim()&&!l.startsWith('Zusammenfassung'));
-    let impCount=0,skipCount=0;
+  if(!confirm('⚠️ Vorhandene Daten werden durch Import ergänzt/überschrieben. Fortfahren?')) return;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.csv';
+  input.onchange = async e => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const text = await file.text();
+    if(!text.includes('Ski-Paar;ISO;Datum;Uhrzeit;Aktion')){ alert('Keine gültige Ski-Tracker-CSV'); return; }
+    const lines = text.split(/\r?\n/).filter(l => l.trim() && !l.startsWith('Zusammenfassung'));
+    let impCount = 0, skipCount = 0;
     for(const ln of lines){
-      const p=ln.split(';');
-      if(p.length<7||p[0]==='Ski-Paar')continue;
-      const name=p[0].trim();
-      const iso=p[1].trim();
-      const act=p[4].trim();
-      const wachs=p[5]?p[5].split(',').map(s=>s.trim()).filter(Boolean):[];
-      const geb=p[6]||'';
-      const ts=new Date(iso).valueOf();
-      if(isNaN(ts))continue;
-      const exists=skis.some(s=>s.history.some(h=>Math.abs(h.ts-ts)<1000&&s.name===name));
-      if(exists){skipCount++;continue;}
-      let ski=skis.find(s=>s.name===name);
+      const p = ln.split(';');
+      if(p.length < 7 || p[0] === 'Ski-Paar') continue;
+      const name   = p[0].trim();
+      const iso    = p[1].trim();
+      const act    = p[4].trim();
+      const wachs  = p[5] ? p[5].split(',').map(s => s.trim()).filter(Boolean) : [];
+      const geb    = p[6] || '';
+      const ts     = new Date(iso).valueOf();
+      if(isNaN(ts)) continue;
+      const exists = skis.some(s => s.history.some(h => Math.abs(h.ts - ts) < 1000 && s.name === name));
+      if(exists){ skipCount++; continue; }
+      let ski = skis.find(s => s.name === name);
       if(!ski){
-        ski={name:name,count:0,lastService:0,history:[]};
+        ski = {name, count: 0, lastService: 0, history: []};
         skis.push(ski);
       }
       ski.history.push({
-        type:act==='Service'?'service':'skiday',
-        ts:ts,
-        wachs:act==='Service'?wachs:undefined,
-        gebiet:act==='skiday'?geb:undefined
+        type:  act === 'Service' ? 'service' : 'skiday',
+        ts:    ts,
+        wachs: act === 'Service' ? wachs : undefined,
+        gebiet:act === 'skiday'  ? geb   : undefined
       });
-      if(act!=='Service')ski.count++;
-      if(act==='Service')ski.lastService=ski.count;
+      if(act !== 'Service') ski.count++;
+      if(act === 'Service') ski.lastService = ski.count;
       impCount++;
     }
-    save();render();
+    save(); render();
     alert(`Importiert: ${impCount}\nÜbersprungen (Duplikate): ${skipCount}`);
   };
   input.click();
