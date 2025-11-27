@@ -20,9 +20,7 @@
   --import:#ffcc00;
   --glow:0 0 8px rgba(0,122,255,.2);
 }
-*{
-  box-sizing:border-box;margin:0;padding:0;
-}
+*{box-sizing:border-box;margin:0;padding:0;}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   background:var(--bg);color:var(--text);padding:16px;-webkit-user-select:none;user-select:none;
@@ -118,7 +116,7 @@ button.service{border-color:var(--service)}
   <button onclick="resetAll()">Alles zurücksetzen</button>
 </div>
 
-<!---------- Skigebiet-Modal ---------->
+<!-- Skigebiet-Modal -->
 <div id="gebietModal" class="modal">
   <div class="modal-inner">
     <h3>Skigebiet eingeben</h3>
@@ -130,7 +128,7 @@ button.service{border-color:var(--service)}
   </div>
 </div>
 
-<!---------- Wachs-Auswahl-Modal ---------->
+<!-- Wachs-Auswahl-Modal -->
 <div id="wachsModal" class="wachs-modal">
   <div class="wachs-inner">
     <h3>Wachs auswählen</h3>
@@ -142,7 +140,7 @@ button.service{border-color:var(--service)}
   </div>
 </div>
 
-<!---------- Name-Ändern-Modal ---------->
+<!-- Name-Ändern-Modal -->
 <div id="modal" class="modal">
   <div class="modal-inner">
     <h3 id="modalTitle">Ski-Paar Name</h3>
@@ -185,7 +183,7 @@ function histHtml(s){
     return`<div class="history-item">
       <span class="history-date">${new Date(h.ts).toLocaleDateString('de')} ${new Date(h.ts).toLocaleTimeString('de').slice(0,5)}</span>
       <span class="history-action ${h.type}">${h.type==='skiday'?'Skitag':'Service'}${extra}</span>
-      <span style="cursor:pointer;color:var(--minus);" onclick="delHist(${idx})">Löschen</span>
+      <span style="cursor:pointer;color:var(--minus);" onclick="delHist(${ri})">Löschen</span>
     </div>`;
   }).join('');
 }
@@ -221,6 +219,10 @@ function render(){
   add.textContent='Neues Paar';
   add.onclick=()=>addSki();
   list.appendChild(add);
+  if(openHistIdx!==null){
+    const el=document.getElementById(`hist-${openHistIdx}`);
+    if(el)el.classList.add('show');
+  }
 }
 
 /* ---------- Historie Toggle ---------- */
@@ -243,9 +245,10 @@ function inc(i){skis[i].count++;skis[i].history.push({type:'skiday',ts:Date.now(
 /* ---------- Minus: letzter Skitag rückgängig ---------- */
 function decLastSkiDay(i){
   const hist=skis[i].history;
-  const lastIdx=hist.map((h,idx)=>h.type==='skiday'?idx:-1).filter(idx=>idx!==-1).pop();
-  if(lastIdx===undefined){alert('Kein Skitag zum Rückgängig-machen');return;}
-  hist.splice(lastIdx,1);
+  const lastEntry=hist.filter(h=>h.type==='skiday').sort((a,b)=>b.ts-a.ts)[0];
+  if(!lastEntry){alert('Kein Skitag zum Rückgängig-machen');return;}
+  const idx=hist.indexOf(lastEntry);
+  hist.splice(idx,1);
   skis[i].count=Math.max(0,skis[i].count-1);
   save();render();
   if(openHistIdx!==null)toggleHist(openHistIdx);
@@ -319,10 +322,9 @@ function saveModal(){
   const val=document.getElementById('modalInput').value.trim();
   if(!val)return;
   if(modalIdx===null){
-    // NEU ANLEGEN
+    if(skis.some(s=>s.name===val)){alert('Name bereits vorhanden');return;}
     skis.push({name:val,count:0,lastService:0,history:[]});
   }else{
-    // UMBENENNEN
     skis[modalIdx].name=val;
   }
   save();render();closeModal();
@@ -330,12 +332,12 @@ function saveModal(){
 
 /* ---------- Historie einzeln löschen ---------- */
 function delHist(histIdx){
-  const skiIdx=document.querySelector('.history.show').id.split('-')[1];
+  const skiIdx=Number(document.querySelector('.history.show').id.split('-')[1]);
+  const realIdx=skis[skiIdx].history.length-1-histIdx;
   if(confirm('Eintrag löschen?')){
-    skis[skiIdx].history.splice(histIdx,1);
-    save();
-    render();
-    if(openHistIdx !== null) toggleHist(openHistIdx);
+    skis[skiIdx].history.splice(realIdx,1);
+    save();render();
+    if(openHistIdx!==null)toggleHist(openHistIdx);
   }
 }
 
@@ -346,18 +348,25 @@ function isoToDE(iso){const d=new Date(iso);return d.toLocaleDateString('de')+' 
 /* ---------- CSV-Export (ISO + Sekunden) ---------- */
 function exportCSV(){
   let csv='Ski-Paar;ISO;Datum;Uhrzeit;Aktion;Wachs;Gebiet\n';
-  skis.forEach(s=>s.history.forEach(h=>{
+  const allEntries=[];
+  skis.forEach(s=>s.history.forEach(h=>allEntries.push({...h,ski:s.name})));
+  allEntries.sort((a,b)=>a.ts-b.ts);
+  allEntries.forEach(h=>{
     const wachs = h.type==='service'&&h.wachs&&h.wachs.length ? h.wachs.join(', ') : '';
     const geb = h.type==='skiday'&&h.gebiet ? h.gebiet : '';
-    csv+=`${s.name};${new Date(h.ts).toISOString()};${isoToDE(h.ts)};${h.type==='skiday'?'Skitag':'Service'};${wachs};${geb}\n`;
-  }));
+    csv+=`${h.ski};${new Date(h.ts).toISOString()};${isoToDE(h.ts)};${h.type==='skiday'?'Skitag':'Service'};${wachs};${geb}\n`;
+  });
   csv+='\nZusammenfassung\nSki-Paar;Gesamt;Seit Service\n';
   skis.forEach(s=>csv+=`${s.name};${s.count};${s.count-s.lastService}\n`);
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download=`Ski_Tracker_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
+  if(typeof a.download==='undefined'){
+    location.href=a.href;
+  }else{
+    a.click();
+  }
 }
 
 /* ---------- CSV-Import (ISO + Warnung + komplett) ---------- */
@@ -370,6 +379,7 @@ function importCSV(){
     const file=e.target.files[0];
     if(!file)return;
     const text=await file.text();
+    if(!text.includes('Ski-Paar;ISO;Datum;Uhrzeit;Aktion')){alert('Keine gültige Ski-Tracker-CSV');return;}
     const lines=text.split('\n').filter(l=>l.trim()&&!l.startsWith('Zusammenfassung'));
     let impCount=0,skipCount=0;
     for(const ln of lines){
@@ -382,7 +392,7 @@ function importCSV(){
       const geb=p[6]||'';
       const ts=new Date(iso).valueOf();
       if(isNaN(ts))continue;
-      const exists=skis.some(s=>s.history.some(h=>h.ts===ts&&s.name===name));
+      const exists=skis.some(s=>s.history.some(h=>Math.abs(h.ts-ts)<1000&&s.name===name));
       if(exists){skipCount++;continue;}
       let ski=skis.find(s=>s.name===name);
       if(!ski){
@@ -408,7 +418,8 @@ function importCSV(){
 /* ---------- Reset ---------- */
 function resetAll(){
   if(confirm('⚠️ ALLE Daten löschen?')){
-    skis=[];save();render();
+    skis=[{name:'SL1',count:0,lastService:0,history:[]}];
+    save();render();
   }
 }
 
