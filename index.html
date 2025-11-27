@@ -156,7 +156,7 @@ button.service{border-color:var(--service)}
 
 <script>
 /* ---------- Daten ---------- */
-let skis = JSON.parse(localStorage.getItem('skisV17')) || [
+let skis = JSON.parse(localStorage.getItem('skisV18')) || [
   {name:'SL1',count:0,lastService:0,history:[]}
 ];
 
@@ -299,10 +299,34 @@ function saveWachs(){
   if(openHistIdx !== null) toggleHist(openHistIdx);
 }
 
-/* ---------- Name & Delete ---------- */
-function deleteSki(i){if(confirm('Paar löschen?')){skis.splice(i,1);save();render();}}
-function addSki(){openModal(null,'Neues Paar');}
+/* ---------- Name & Delete / NEUES PAAR ---------- */
+function addSki(){
+  openModal(null,'Neues Paar');
+}
 function editName(i){openModal(i,'Name ändern');}
+
+/* ---------- Normales Modal ---------- */
+let modalIdx=null;
+function openModal(idx,title){
+  modalIdx=idx;
+  document.getElementById('modalTitle').textContent=title;
+  document.getElementById('modalInput').value=idx===null?'':skis[idx].name;
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modalInput').focus();
+}
+function closeModal(){document.getElementById('modal').classList.remove('show');}
+function saveModal(){
+  const val=document.getElementById('modalInput').value.trim();
+  if(!val)return;
+  if(modalIdx===null){
+    // NEU ANLEGEN
+    skis.push({name:val,count:0,lastService:0,history:[]});
+  }else{
+    // UMBENENNEN
+    skis[modalIdx].name=val;
+  }
+  save();render();closeModal();
+}
 
 /* ---------- Historie einzeln löschen ---------- */
 function delHist(histIdx){
@@ -315,7 +339,7 @@ function delHist(histIdx){
   }
 }
 
-/* ---------- CSV-Export/Import (repariert) ---------- */
+/* ---------- CSV-Export/Import ---------- */
 function exportCSV(){
   let csv='Ski-Paar;Datum;Uhrzeit;Aktion;Wachs;Gebiet\n';
   skis.forEach(s=>s.history.forEach(h=>{
@@ -384,7 +408,7 @@ function resetAll(){
 }
 
 /* ---------- Persist ---------- */
-function save(){localStorage.setItem('skisV17',JSON.stringify(skis));}
+function save(){localStorage.setItem('skisV18',JSON.stringify(skis));}
 render();
 </script>
 </body>
