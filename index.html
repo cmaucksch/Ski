@@ -156,7 +156,7 @@ button.service{border-color:var(--service)}
 
 <script>
 /* ---------- Daten ---------- */
-let skis = JSON.parse(localStorage.getItem('skisV21')) || [
+let skis = JSON.parse(localStorage.getItem('skisV22')) || [
   {name:'SL1',count:0,lastService:0,history:[]}
 ];
 
@@ -411,7 +411,7 @@ function resetAll(){
 }
 
 /* ---------- Persist ---------- */
-function save(){localStorage.setItem('skisV21',JSON.stringify(skis));}
+function save(){localStorage.setItem('skisV22',JSON.stringify(skis));}
 render();
 </script>
 </body>
