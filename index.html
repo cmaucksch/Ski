@@ -156,7 +156,7 @@ button.service{border-color:var(--service)}
 
 <script>
 /* ---------- Daten ---------- */
-let skis = JSON.parse(localStorage.getItem('skisV20')) || [
+let skis = JSON.parse(localStorage.getItem('skisV21')) || [
   {name:'SL1',count:0,lastService:0,history:[]}
 ];
 
@@ -339,7 +339,7 @@ function delHist(histIdx){
   }
 }
 
-/* ---------- CSV-Export/Import (repariert) ---------- */
+/* ---------- CSV-Export (komplett) ---------- */
 function exportCSV(){
   let csv='Ski-Paar;Datum;Uhrzeit;Aktion;Wachs;Gebiet\n';
   skis.forEach(s=>s.history.forEach(h=>{
@@ -356,7 +356,10 @@ function exportCSV(){
   a.download=`Ski_Tracker_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
 }
+
+/* ---------- CSV-Import (komplett & mit Warnung) ---------- */
 function importCSV(){
+  if(!confirm('⚠️ Vorhandene Daten werden durch Import ersetzt/ergänzt. Fortfahren?'))return;
   const input=document.createElement('input');
   input.type='file';
   input.accept='.csv';
@@ -408,7 +411,7 @@ function resetAll(){
 }
 
 /* ---------- Persist ---------- */
-function save(){localStorage.setItem('skisV20',JSON.stringify(skis));}
+function save(){localStorage.setItem('skisV21',JSON.stringify(skis));}
 render();
 </script>
 </body>
