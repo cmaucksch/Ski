@@ -156,7 +156,7 @@ button.service{border-color:var(--service)}
 
 <script>
 /* ---------- Daten ---------- */
-let skis = JSON.parse(localStorage.getItem('skisV22')) || [
+let skis = JSON.parse(localStorage.getItem('skisV23')) || [
   {name:'SL1',count:0,lastService:0,history:[]}
 ];
 
@@ -339,14 +339,17 @@ function delHist(histIdx){
   }
 }
 
-/* ---------- CSV-Export (komplett) ---------- */
+/* ---------- ISO-TIME HELPER ---------- */
+function isoNow(){return new Date().toISOString();}
+function isoToDE(iso){const d=new Date(iso);return d.toLocaleDateString('de')+' '+d.toLocaleTimeString('de').slice(0,5);}
+
+/* ---------- CSV-Export (ISO + Sekunden) ---------- */
 function exportCSV(){
-  let csv='Ski-Paar;Datum;Uhrzeit;Aktion;Wachs;Gebiet\n';
+  let csv='Ski-Paar;ISO;Datum;Uhrzeit;Aktion;Wachs;Gebiet\n';
   skis.forEach(s=>s.history.forEach(h=>{
-    const d=new Date(h.ts);
     const wachs = h.type==='service'&&h.wachs&&h.wachs.length ? h.wachs.join(', ') : '';
     const geb = h.type==='skiday'&&h.gebiet ? h.gebiet : '';
-    csv+=`${s.name};${d.toLocaleDateString('de')};${d.toLocaleTimeString('de').slice(0,5)};${h.type==='skiday'?'Skitag':'Service'};${wachs};${geb}\n`;
+    csv+=`${s.name};${new Date(h.ts).toISOString()};${isoToDE(h.ts)};${h.type==='skiday'?'Skitag':'Service'};${wachs};${geb}\n`;
   }));
   csv+='\nZusammenfassung\nSki-Paar;Gesamt;Seit Service\n';
   skis.forEach(s=>csv+=`${s.name};${s.count};${s.count-s.lastService}\n`);
@@ -357,7 +360,7 @@ function exportCSV(){
   a.click();
 }
 
-/* ---------- CSV-Import (komplett & mit Warnung) ---------- */
+/* ---------- CSV-Import (ISO + Warnung + komplett) ---------- */
 function importCSV(){
   if(!confirm('⚠️ Vorhandene Daten werden durch Import ersetzt/ergänzt. Fortfahren?'))return;
   const input=document.createElement('input');
@@ -371,16 +374,15 @@ function importCSV(){
     let impCount=0,skipCount=0;
     for(const ln of lines){
       const p=ln.split(';');
-      if(p.length<6||p[0]==='Ski-Paar')continue;
-      const name=p[0];
-      const date=p[1];
-      const time=p[2];
-      const act=p[3];
-      const wachs=p[4]?p[4].split(', ').filter(Boolean):[];
-      const geb=p[5]||'';
-      const ts=new Date(date.split('.').reverse().join('-')+'T'+time);
+      if(p.length<7||p[0]==='Ski-Paar')continue;
+      const name=p[0].trim();
+      const iso=p[1].trim();
+      const act=p[4].trim();
+      const wachs=p[5]?p[5].split(',').map(s=>s.trim()).filter(Boolean):[];
+      const geb=p[6]||'';
+      const ts=new Date(iso).valueOf();
       if(isNaN(ts))continue;
-      const exists=skis.some(s=>s.history.some(h=>h.ts===ts.valueOf()&&s.name===name));
+      const exists=skis.some(s=>s.history.some(h=>h.ts===ts&&s.name===name));
       if(exists){skipCount++;continue;}
       let ski=skis.find(s=>s.name===name);
       if(!ski){
@@ -389,7 +391,7 @@ function importCSV(){
       }
       ski.history.push({
         type:act==='Service'?'service':'skiday',
-        ts:ts.valueOf(),
+        ts:ts,
         wachs:act==='Service'?wachs:undefined,
         gebiet:act==='skiday'?geb:undefined
       });
@@ -411,7 +413,7 @@ function resetAll(){
 }
 
 /* ---------- Persist ---------- */
-function save(){localStorage.setItem('skisV22',JSON.stringify(skis));}
+function save(){localStorage.setItem('skisV23',JSON.stringify(skis));}
 render();
 </script>
 </body>
