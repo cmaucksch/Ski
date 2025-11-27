@@ -17,7 +17,6 @@
   --reset:#b91c2c;
   --plus:#34c759;
   --minus:#c62a3a;
-  --import:#ffcc00;
   --glow:0 0 8px rgba(0,122,255,.2);
 }
 *{
@@ -107,7 +106,6 @@ button.service{border-color:var(--service)}
 .wachs-opt{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:16px;}
 .wachs-opt input{cursor:pointer}
 </style>
-<base target="_blank">
 </head>
 <body>
 
@@ -145,7 +143,7 @@ button.service{border-color:var(--service)}
 
 <script>
 /* ---------- Daten ---------- */
-let skis = JSON.parse(localStorage.getItem('skisV14')) || [
+let skis = JSON.parse(localStorage.getItem('skisV15')) || [
   {name:'SL1',count:0,lastService:0,history:[]}
 ];
 
@@ -238,6 +236,33 @@ function decLastSkiDay(i){
   skis[i].count=Math.max(0,skis[i].count-1);
   save();render();
   if(openHistIdx!==null)toggleHist(openHistIdx);
+}
+
+/* ---------- Wachs-Modal ---------- */
+function openWachsModal(i){
+  wachsCurrentSki = i;
+  const container = document.getElementById('wachsOptions');
+  container.innerHTML = '';
+  wachsOptionen.forEach(opt=>{
+    const label = document.createElement('label');
+    label.className = 'wachs-opt';
+    label.innerHTML = `<input type="checkbox" value="${opt}"> ${opt}`;
+    container.appendChild(label);
+  });
+  document.getElementById('wachsModal').classList.add('show');
+}
+function closeWachsModal(){
+  document.getElementById('wachsModal').classList.remove('show');
+}
+function saveWachs(){
+  const checked = Array.from(document.querySelectorAll('#wachsOptions input:checked')).map(el=>el.value);
+  const i = wachsCurrentSki;
+  skis[i].lastService = skis[i].count;
+  skis[i].history.push({type:'service',ts:Date.now(),wachs:checked});
+  save();
+  closeWachsModal();
+  render();
+  if(openHistIdx !== null) toggleHist(openHistIdx);
 }
 
 /* ---------- Name & Delete ---------- */
@@ -333,8 +358,15 @@ function saveModal(){
   save();render();closeModal();
 }
 
+/* ---------- Reset ---------- */
+function resetAll(){
+  if(confirm('⚠️ ALLE Daten löschen?')){
+    skis=[];save();render();
+  }
+}
+
 /* ---------- Persist ---------- */
-function save(){localStorage.setItem('skisV14',JSON.stringify(skis));}
+function save(){localStorage.setItem('skisV15',JSON.stringify(skis));}
 render();
 </script>
 </body>
