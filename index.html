@@ -17,7 +17,6 @@
   --reset:#b91c2c;
   --plus:#34c759;
   --minus:#c62a3a;
-  --import:#ffcc00;
   --glow:0 0 8px rgba(0,122,255,.2);
 }
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -69,8 +68,6 @@ button.minus{border-color:var(--minus)}
 button.service{border-color:var(--service)}
 .export-reset{display:flex;gap:12px;margin-top:24px;flex-wrap:wrap}
 .export-reset button{flex:1;border-radius:4px;background:linear-gradient(135deg,#000 0%,#222 100%);}
-.export-reset button.import{border-color:var(--import)}
-.export-reset button:first-child{border-color:var(--export)}
 .export-reset button:last-child{border-color:var(--reset)}
 .modal{
   position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:24px;
@@ -112,7 +109,6 @@ button.service{border-color:var(--service)}
 <div id="list"></div>
 <div class="export-reset">
   <button onclick="exportCSV()">Export CSV</button>
-  <button onclick="importCSV()">Import CSV</button>
   <button onclick="resetAll()">Alles zurücksetzen</button>
 </div>
 
@@ -352,102 +348,36 @@ function delHist(skiIdx,histIdx){
 function isoNow(){return new Date().toISOString();}
 function isoToDE(iso){const d=new Date(iso);return d.toLocaleDateString('de')+' '+d.toLocaleTimeString('de').slice(0,5);}
 
-/* ---------- CSV-Export (7 Spalten, sauber) ---------- */
+/* ---------- Excel-Export (strukturiert wie App) ---------- */
 function exportCSV(){
-  let csv='Ski-Paar;ISO;Datum;Uhrzeit;Aktion;Wachs;Gebiet\n';
-  const allEntries=[];
-  skis.forEach(s=>s.history.forEach(h=>allEntries.push({...h,ski:s.name})));
-  allEntries.sort((a,b)=>a.ts-b.ts);
-  allEntries.forEach(h=>{
-    const d=new Date(h.ts);
-    const datum=d.toLocaleDateString('de');
-    const uhr=d.toLocaleTimeString('de').slice(0,5);
-    const aktion=h.type==='skiday'?'Skitag':'Service';
-    const wachs = h.type==='service'&&h.wachs&&h.wachs.length ? h.wachs.join(', ') : '';
-    const geb = h.type==='skiday'&&h.gebiet!==undefined ? h.gebiet : '';
-    csv+=`${h.ski};${d.toISOString()};${datum};${uhr};${aktion};${wachs};${geb}\n`;
+  // Excel-kompatibles CSV mit Semikolon & UTF-8-BOM
+  let csv='\ufeff';
+  csv+='Ski-Paar;Datum;Uhrzeit;Gebiet;Wachs;Aktion\n';
+
+  // pro Ski-Paar eine eigene "Tabelle"
+  skis.forEach(s=>{
+    // Überschrift (Titelzeile) für dieses Paar
+    csv+=`${s.name}; ; ; ; ;\n`;
+    // Einträge chronologisch
+    s.history.sort((a,b)=>a.ts-b.ts).forEach(h=>{
+      const d=new Date(h.ts);
+      const datum=d.toLocaleDateString('de');
+      const uhr=d.toLocaleTimeString('de').slice(0,5);
+      const aktion=h.type==='skiday'?'Skitag':'Service';
+      const wachs=h.type==='service'&&h.wachs&&h.wachs.length?h.wachs.join(', '):'—';
+      const geb=h.type==='skiday'&&h.gebiet!==undefined?(h.gebiet||'Skigebiet'):'—';
+      csv+=`;${datum};${uhr};${geb};${wachs};${aktion}\n`;
+    });
+    // Leerzeile zwischen den Paaren
+    csv+='\n';
   });
-  csv+='\nZusammenfassung\nSki-Paar;Gesamt;Seit Service\n';
-  skis.forEach(s=>csv+=`${s.name};${s.count};${s.count-s.lastService}\n`);
-  const blob=new Blob(['\ufeff'+csv],{type:'text/csv'});
+
+  // Download
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`Ski_Tracker_${new Date().toISOString().slice(0,10)}.csv`;
-  if(typeof a.download==='undefined'){
-    location.href=a.href;
-  }else{
-    a.click();
-  }
-}
-
-/* ---------- CSV-Import (Zusammenfassungs-Zeilen entfernen + Zähler aus History) ---------- */
-function importCSV(){
-  if(!confirm('⚠️ Vorhandene Daten werden durch Import ersetzt/überschrieben. Fortfahren?')) return;
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.csv';
-  input.onchange = async e => {
-    const file = e.target.files[0];
-    if(!file) return;
-    const text = await file.text();
-    if(!text.includes('Ski-Paar;ISO;Datum;Uhrzeit;Aktion')){ alert('Keine gültige Ski-Tracker-CSV'); return; }
-
-    const lines = text.split(/\r?\n/)
-      .map(l => l.trim())
-      .filter(l =>
-        l &&
-        !l.startsWith('Zusammenfassung') &&
-        !/^[^;]+;\d+;\d+$/.test(l)   // entfernt SL1;10;5 usw.
-      );
-
-    // alle Zähler zurücksetzen
-    skis.forEach(s => {
-      s.count = 0;
-      s.lastService = 0;
-      s.history = [];
-    });
-
-    let impCount = 0, skipCount = 0;
-
-    for(const ln of lines){
-      const p = ln.split(';');
-      if(p.length < 7 || p[0] === 'Ski-Paar') continue;
-      const name   = p[0].trim();
-      const iso    = p[1].trim();
-      const act    = p[4].trim();
-      const wachs  = p[5] ? p[5].split(',').map(s => s.trim()).filter(Boolean) : [];
-      const geb    = p[6] || '';
-      const ts     = new Date(iso).valueOf();
-      if(isNaN(ts)) continue;
-
-      let ski = skis.find(s => s.name === name);
-      if(!ski){
-        ski = {name, count: 0, lastService: 0, history: []};
-        skis.push(ski);
-      }
-
-      ski.history.push({
-        type:  act === 'Service' ? 'service' : 'skiday',
-        ts:    ts,
-        wachs: act === 'Service' ? wachs : undefined,
-        gebiet:act === 'skiday'  ? geb   : undefined
-      });
-      impCount++;
-    }
-
-    // --- ZÄHLER AM ENDE KORREKT AUS HISTORY BERECHNEN ---
-    skis.forEach(ski => {
-      ski.count = ski.history.filter(h => h.type === 'skiday').length;
-      const lastServIndex = ski.history.map(h => h.type).lastIndexOf('service');
-      ski.lastService = lastServIndex === -1
-        ? 0
-        : ski.history.slice(0, lastServIndex).filter(h => h.type === 'skiday').length;
-    });
-
-    save(); render();
-    alert(`Importiert: ${impCount}\nÜbersprungen (Duplikate): ${skipCount}`);
-  };
-  input.click();
+  a.download=`Ski_Tracker_Übersicht_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
 }
 
 /* ---------- Reset ---------- */
