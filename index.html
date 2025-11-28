@@ -380,7 +380,7 @@ function exportCSV(){
   }
 }
 
-/* ---------- CSV-Import (Zusammenfassungs-Zeilen entfernen + Zähler aus History) ---------- */
+/* ---------- CSV-Import (Zähler am Ende aus History berechnen) ---------- */
 function importCSV(){
   if(!confirm('⚠️ Vorhandene Daten werden durch Import ersetzt/überschrieben. Fortfahren?')) return;
   const input = document.createElement('input');
@@ -394,11 +394,7 @@ function importCSV(){
 
     const lines = text.split(/\r?\n/)
       .map(l => l.trim())
-      .filter(l =>
-        l &&
-        !l.startsWith('Zusammenfassung') &&
-        !/^[^;]+;\d+;\d+$/.test(l)   // entfernt SL1;10;5 usw.
-      );
+      .filter(l => l && !l.startsWith(';;;;;') && !l.startsWith('Zusammenfassung'));
 
     // alle Zähler zurücksetzen
     skis.forEach(s => {
