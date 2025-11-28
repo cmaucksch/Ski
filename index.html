@@ -380,7 +380,7 @@ function exportCSV(){
   }
 }
 
-/* ---------- CSV-Import (Zähler vorher zurücksetzen) ---------- */
+/* ---------- CSV-Import (Zähler am Ende aus History berechnen) ---------- */
 function importCSV(){
   if(!confirm('⚠️ Vorhandene Daten werden durch Import ersetzt/überschrieben. Fortfahren?')) return;
   const input = document.createElement('input');
@@ -392,7 +392,6 @@ function importCSV(){
     const text = await file.text();
     if(!text.includes('Ski-Paar;ISO;Datum;Uhrzeit;Aktion')){ alert('Keine gültige Ski-Tracker-CSV'); return; }
 
-    // --- ZÄHLER ZURÜCKSETZEN (vorher sichern) ---
     const lines = text.split(/\r?\n/)
       .map(l => l.trim())
       .filter(l => l && !l.startsWith(';;;;;') && !l.startsWith('Zusammenfassung'));
@@ -429,12 +428,17 @@ function importCSV(){
         wachs: act === 'Service' ? wachs : undefined,
         gebiet:act === 'skiday'  ? geb   : undefined
       });
-
-      // nur zählen, wenn der Eintrag wirklich neu war
-      if (act !== 'Service') ski.count++;
-      if (act === 'Service') ski.lastService = ski.count;
       impCount++;
     }
+
+    // --- ZÄHLER AM ENDE KORREKT AUS HISTORY BERECHNEN ---
+    skis.forEach(ski => {
+      ski.count = ski.history.filter(h => h.type === 'skiday').length;
+      const lastServIndex = ski.history.map(h => h.type).lastIndexOf('service');
+      ski.lastService = lastServIndex === -1
+        ? 0
+        : ski.history.slice(0, lastServIndex).filter(h => h.type === 'skiday').length;
+    });
 
     save(); render();
     alert(`Importiert: ${impCount}\nÜbersprungen (Duplikate): ${skipCount}`);
